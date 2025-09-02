@@ -1,5 +1,8 @@
+const mongoose = require("mongoose");
 const Board = require("../models/Board");
 const List = require("../models/List");
+const Task = require("../models/Task");
+const Comment = require("../models/Comment");
 
 module.exports.create_list = async (req, res) => {
   let { id } = req.params;
@@ -58,29 +61,51 @@ module.exports.update_list = async (req, res) => {
 };
 
 module.exports.delete_list = async (req, res) => {
-    let {id} = req.params;
-  try {
-    let list = await List.findById(id);
+  let { id } = req.params;
 
-    if(!list){
-        return res.status(400).json({message: "list not found"});
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    let list = await List.findById(id).session(session);
+
+    if (!list) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "list not found" });
     }
 
-    let delete_list = await List.findByIdAndDelete(list._id);
-    
-    if(!delete_list){
-        return res.status(400).json({message: "deletion failure"});
+    let tasks = await Task.find({ list_id: list._id }).session(session);
+    const taskIds = tasks.map((t) => t._id);
+
+    if (taskIds.length > 0) {
+      await Comment.deleteMany({ task_id: { $in: taskIds } }, { session });
+    }
+
+    await Task.deleteMany({ list_id: list._id }, { session });
+
+    let delete_list = await List.findByIdAndDelete(list._id, { session });
+
+    if (!delete_list) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "deletion failure" });
     }
     let updated_board_list_order = await Board.findByIdAndUpdate(
-        list.board_id,
-        {$pull : {list_order: list._id}}
+      list.board_id,
+      { $pull: { list_order: list._id } },
+      {session}
     );
 
-    if(!updated_board_list_order){
-        return res.status(400).json({message: "list order updation failure"});
+    if (!updated_board_list_order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "list order updation failure" });
     }
 
-    res.status(200).json({message: "List deleted successfully", delete_list});
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ message: "List deleted successfully", delete_list });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

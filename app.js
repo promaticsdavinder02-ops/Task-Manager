@@ -9,16 +9,18 @@ const list_router = require("./routes/list_route");
 const task_router = require("./routes/task_route");
 const comment_router = require("./routes/comment_route");
 
-main().then(()=>{
+main()
+  .then(() => {
     console.log("connected to DB");
-}).catch((err)=>{
+  })
+  .catch((err) => {
     console.log("Database error :", err);
-})
+  });
 
 app.use(express.json());
 
-async function main(){
-    await mongoose.connect(process.env.MONGO_URI)
+async function main() {
+  await mongoose.connect(process.env.MONGO_URI);
 }
 
 app.use("/api/users", user_router);
@@ -27,6 +29,6 @@ app.use("/api/lists", list_router);
 app.use("/api/tasks", task_router);
 app.use("/api/comments", comment_router);
 
-app.listen(process.env.PORT, ()=>{
-    console.log("server is running on port :", process.env.PORT);
-})
+app.listen(process.env.PORT, () => {
+  console.log("server is running on port :", process.env.PORT);
+});

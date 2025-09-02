@@ -1,4 +1,8 @@
+const mongoose = require("mongoose");
 const Board = require("../models/Board");
+const List = require("../models/List");
+const Task = require("../models/Task");
+const Comment = require("../models/Comment");
 
 module.exports.get_all_boards = async (req, res) => {
   try {
@@ -98,12 +102,47 @@ module.exports.update_board = async (req, res) => {
 
 module.exports.delete_board = async (req, res) => {
   const { id } = req.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    if (!id) {
-      return res.status(400).json({ message: "Board not found" });
+    let board = await Board.findById(id).session(session);
+
+    if(!board){
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({message: "board not found"});
     }
 
-    const deleted_board = await Board.findByIdAndDelete(id);
+    let lists = await List.find({board_id: board._id}).session(session);
+    const list_ids = lists.map((l)=> l._id);
+
+    let tasks = await Task.find({list_id:{$in: list_ids}}).session(session);
+    const task_ids = tasks.map((t) => t._id);
+
+    if(task_ids.length > 0){
+      await Comment.deleteMany({task_id: {$in: task_ids}}, {session});
+    }
+
+    if(list_ids.length > 0){
+      await Task.deleteMany({list_id: {$in: list_ids}}, {session});
+    }
+
+    if(list_ids.length > 0){
+      await List.deleteMany({board_id: board._id}, {session});
+    }
+
+    const deleted_board = await Board.findByIdAndDelete(board._id, {session});
+
+    if(!deleted_board){
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({message: "board deletion failure"});
+    }
+
+    await session.commitTransaction();
+    session.endSession();
 
     res
       .status(200)
