@@ -70,7 +70,48 @@ module.exports.create_board = async (req, res) => {
   }
 };
 
-module.exports.get_board = async (req, res) => {};
+module.exports.get_board = async (req, res) => {
+  const {id} = req.params;
+  try{
+    const boards = await Board.aggregate([
+      {
+        $match:{_id: new mongoose.Types.ObjectId(id)},
+      },
+      {
+        $lookup: {
+          from: "lists",
+          localField: "_id",
+          foreignField: "board_id",
+          as: "lists",
+          pipeline: [
+            {
+              $lookup: {
+                from: "tasks",
+                localField: "_id",
+                foreignField: "list_id",
+                as: "tasks",
+                pipeline: [
+                  {
+                    $lookup: {
+                      from: "comments",
+                      localField: "_id",
+                      foreignField: "task_id",
+                      as: "comments",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    res.status(200).json(boards);
+  }catch(err){
+    res.status(500).json({error: err.message})
+  }
+};
 
 module.exports.update_board = async (req, res) => {
   const { id } = req.params;

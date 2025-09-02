@@ -112,7 +112,14 @@ module.exports.delete_list = async (req, res) => {
 };
 
 module.exports.reorder_list = async (req, res) => {
+  const {id} = req.params;
   try {
+    const list = await List.findById(id);
+    const board = await Board.findById(list.board_id);
+
+    console.log(board.list_order[0]);
+
+    res.send("request working");
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
