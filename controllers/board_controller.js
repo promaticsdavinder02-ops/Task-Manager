@@ -2,6 +2,38 @@ const Board = require("../models/Board");
 
 module.exports.get_all_boards = async (req, res) => {
   try {
+    const boards = await Board.aggregate([
+      {
+        $lookup: {
+          from: "lists",
+          localField: "_id",
+          foreignField: "board_id",
+          as: "lists",
+          pipeline: [
+            {
+              $lookup: {
+                from: "tasks",
+                localField: "_id",
+                foreignField: "list_id",
+                as: "tasks",
+                pipeline: [
+                  {
+                    $lookup: {
+                      from: "comments",
+                      localField: "_id",
+                      foreignField: "task_id",
+                      as: "comments",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    res.json(boards);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -58,7 +90,7 @@ module.exports.update_board = async (req, res) => {
         .json({ message: "Board updated Successfully", updated_board });
     }
 
-    res.status(400).json({ message: "Updation failure"});
+    res.status(400).json({ message: "Updation failure" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

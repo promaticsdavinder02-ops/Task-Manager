@@ -7,6 +7,7 @@ const user_router = require("./routes/user_route");
 const board_router = require("./routes/board_route");
 const list_router = require("./routes/list_route");
 const task_router = require("./routes/task_route");
+const comment_router = require("./routes/comment_route");
 
 main().then(()=>{
     console.log("connected to DB");
@@ -24,6 +25,7 @@ app.use("/api/users", user_router);
 app.use("/api/boards", board_router);
 app.use("/api/lists", list_router);
 app.use("/api/tasks", task_router);
+app.use("/api/comments", comment_router);
 
 app.listen(process.env.PORT, ()=>{
     console.log("server is running on port :", process.env.PORT);
