@@ -113,13 +113,29 @@ module.exports.delete_list = async (req, res) => {
 
 module.exports.reorder_list = async (req, res) => {
   const {id} = req.params;
+  const {reorder_list} = req.body;
   try {
     const list = await List.findById(id);
     const board = await Board.findById(list.board_id);
+    let newarray = board.list_order;
+    // let spreed_board = {...board.toObject()};
 
-    console.log(board.list_order[0]);
+    // console.log(spreed_board);
 
-    res.send("request working");
+    let start_idx = newarray.indexOf(id);
+    let element = newarray[start_idx];
+    
+    newarray.splice(start_idx, 1);
+    
+    newarray.splice(reorder_list-1, 0, element);
+
+   let updatedBoard = await Board.findOneAndUpdate(
+    list.board_id,
+    {list_order: newarray},
+    {new:true}
+   )
+
+    res.status(200).json({message:"reorder successfull", updatedBoard});
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

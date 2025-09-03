@@ -1,5 +1,6 @@
 const Comment = require("../models/Comment");
 const Task = require("../models/Task");
+const mongoose = require("mongoose");
 
 module.exports.add_comment = async (req, res) => {
   let { id } = req.params;
@@ -28,9 +29,11 @@ module.exports.get_comment = async (req, res) => {
   try {
     let comments = await Comment.aggregate([
       {
-        $match: { task_id: id },
+        $match: { task_id: new mongoose.Types.ObjectId(id) },
       },
     ]);
+
+    console.log(comments);
 
     res.status(200).json(comments);
   } catch (err) {

@@ -17,6 +17,22 @@ module.exports.add_task = async (req, res) => {
       return res.status(400).json({ message: "id not found" });
     }
 
+    
+    const statusCheck = await Task.aggregate([
+      { $match: { list_id: new mongoose.Types.ObjectId(id) } },
+      {
+        $group: {
+          _id: "$list_id",
+          statuses: { $addToSet: "$status" },
+        },
+      },
+    ]);
+
+    let allDoneBefore =
+      statusCheck.length > 0 &&
+      statusCheck[0].statuses.length === 1 &&
+      statusCheck[0].statuses[0] === "Done";
+
     let new_task = new Task({
       ...req.body,
       list_id: id,
@@ -24,6 +40,10 @@ module.exports.add_task = async (req, res) => {
 
     await new_task.save();
 
+    // If all tasks were "Done" before adding → reset list_stage to "Todo"
+    if (allDoneBefore) {
+      await List.findByIdAndUpdate(id, { $set: { list_stage: "Todo" } });
+    }
     res.status(200).json({ message: "Task added successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -67,6 +87,26 @@ module.exports.update_task = async (req, res) => {
       return res.status(400).json({ message: "updation failure" });
     }
 
+    if (req.body.status === "Done") {
+      const check = await Task.aggregate([
+        { $match: { list_id: updated_task.list_id } },
+        {
+          $group: {
+            _id: "$list_id",
+            allDone: { $min: { $cond: [{ $eq: ["$status", "Done"] }, 1, 0] } },
+          },
+        },
+      ]);
+
+      if (check.length > 0 && check[0].allDone === 1) {
+        await List.findByIdAndUpdate(updated_task.list_id, {
+          $set: {
+            list_stage: "Done",
+          },
+        });
+      }
+    }
+
     res
       .status(200)
       .json({ message: "task updated successfully", updated_task });
@@ -95,4 +135,31 @@ module.exports.delete_task = async (req, res) => {
   }
 };
 
-module.exports.assign_user = async (req, res) => {};
+module.exports.assign_user = async (req, res) => {
+  let { id } = req.params;
+  let { user_name } = req.body;
+  try {
+    const task = await Task.findById(id);
+    const user = await User.findOne({ user_name });
+    const list = await List.findById(task.list_id);
+
+    const update_list_stage = await List.findByIdAndUpdate(list._id, {
+      $set: { list_stage: "In progress" },
+    });
+
+    const update_task = await Task.findByIdAndUpdate(
+      task._id,
+      {
+        $push: { assigned_user: user._id },
+        $set: { status: "In progress" },
+      },
+      { new: true }
+    );
+
+    res
+      .status(200)
+      .json({ message: "user assigned successfully", update_task });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
