@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const cors = require("cors");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 dotenv.config();
@@ -18,6 +19,7 @@ main()
   });
 
 app.use(express.json());
+app.use(cors());
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);
