@@ -14,8 +14,7 @@ let boards = [];
 let currentPage = 1;
 const limit = 8;
 const API_URL = "http://localhost:3000/api/boards";
-const JWT_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4YjJhMjJjZDFjOTc3N2Y0MTczYWZjYyIsImlhdCI6MTc1NzA0NTU0NSwiZXhwIjoxNzU3NDc3NTQ1fQ.pKE4MvRxre2BOVaomJoeLALj0p9nQZdS3EDa_zp5vMk";
+const JWT_TOKEN = "";
 
 async function fetchBoards() {
   try {
