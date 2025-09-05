@@ -112,31 +112,44 @@ module.exports.delete_list = async (req, res) => {
 };
 
 module.exports.reorder_list = async (req, res) => {
-  const {id} = req.params;
-  const {reorder_list} = req.body;
+  const { id } = req.params; 
+  const { reorder_list } = req.body;
+
   try {
     const list = await List.findById(id);
+    if (!list) return res.status(404).json({ error: "List not found" });
+
     const board = await Board.findById(list.board_id);
-    let newarray = board.list_order;
-    // let spreed_board = {...board.toObject()};
+    if (!board) return res.status(404).json({ error: "Board not found" });
 
-    // console.log(spreed_board);
+    // STEP 1: remove list from array
+    await Board.updateOne(
+      { _id: board._id },
+      { $pull: { list_order: list._id } }
+    );
 
-    let start_idx = newarray.indexOf(id);
-    let element = newarray[start_idx];
-    
-    newarray.splice(start_idx, 1);
-    
-    newarray.splice(reorder_list-1, 0, element);
+    // STEP 2: insert list back at new position
+    await Board.updateOne(
+      { _id: board._id },
+      { $push: { list_order: { $each: [list._id], $position: reorder_list - 1 } } }
+    );
 
-   let updatedBoard = await Board.findOneAndUpdate(
-    list.board_id,
-    {list_order: newarray},
-    {new:true}
-   )
+    // STEP 3: return updated board with ordered lists
+    const updatedBoard = await Board.aggregate([
+      { $match: { _id: board._id } },
+      {
+        $lookup: {
+          from: "lists",
+          localField: "list_order",
+          foreignField: "_id",
+          as: "lists"
+        }
+      }
+    ]);
 
-    res.status(200).json({message:"reorder successfull", updatedBoard});
+    res.status(200).json({ message: "Reorder successful", board: updatedBoard[0] });
   } catch (err) {
+    console.error("reorder_list error:", err);
     res.status(500).json({ error: err.message });
   }
 };

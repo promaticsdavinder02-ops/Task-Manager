@@ -4,6 +4,106 @@ const List = require("../models/List");
 const Task = require("../models/Task");
 const Comment = require("../models/Comment");
 
+
+// Helper: returns board with lists ordered according to board.list_order (and includes tasks/comments)
+async function getBoardWithOrderedLists(boardId) {
+  const boardObjId = new mongoose.Types.ObjectId(boardId);
+  const pipeline = [
+    { $match: { _id: boardObjId } },
+
+    // lookup lists, and for each list lookup tasks and comments (nested)
+    {
+      $lookup: {
+        from: "lists",
+        let: { boardId: "$_id" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$board_id", "$$boardId"] } } },
+
+          // lookup tasks for each list
+          {
+            $lookup: {
+              from: "tasks",
+              let: { listId: "$_id" },
+              pipeline: [
+                { $match: { $expr: { $eq: ["$list_id", "$$listId"] } } },
+
+                // lookup comments for each task
+                {
+                  $lookup: {
+                    from: "comments",
+                    let: { taskId: "$_id" },
+                    pipeline: [
+                      { $match: { $expr: { $eq: ["$task_id", "$$taskId"] } } }
+                    ],
+                    as: "comments"
+                  }
+                }
+              ],
+              as: "tasks"
+            }
+          }
+        ],
+        as: "lists"
+      }
+    },
+
+    // create ordered lists array using list_order; if some lists aren't present in list_order they will be appended afterwards
+    {
+      $addFields: {
+        orderedLists: {
+          $map: {
+            input: { $ifNull: ["$list_order", []] },
+            as: "orderId",
+            in: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$lists",
+                    as: "l",
+                    cond: { $eq: ["$$l._id", "$$orderId"] }
+                  }
+                },
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        remainingLists: {
+          $filter: {
+            input: "$lists",
+            as: "l",
+            cond: { $not: { $in: ["$$l._id", { $ifNull: ["$list_order", []] }] } }
+          }
+        }
+      }
+    },
+    {
+      $addFields: {
+        lists: { $concatArrays: ["$orderedLists", "$remainingLists"] }
+      }
+    },
+
+    // you may project out anything you don't want returned; keep _id, board_name, lists, list_order, etc.
+    {
+      $project: {
+        user_id: 1,
+        board_name: 1,
+        list_order: 1,
+        lists: 1,
+        createdAt: 1,
+        updatedAt: 1
+      }
+    }
+  ];
+
+  const result = await Board.aggregate(pipeline);
+  return result[0] || null;
+}
+
 module.exports.get_all_boards = async (req, res) => {
   try {
     const boards = await Board.aggregate([
@@ -37,7 +137,10 @@ module.exports.get_all_boards = async (req, res) => {
       },
     ]);
 
-    res.json(boards);
+    res.status(200).json({
+      totalBoards:boards.length,
+      boards:boards
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -69,47 +172,15 @@ module.exports.create_board = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 module.exports.get_board = async (req, res) => {
-  const {id} = req.params;
-  try{
-    const boards = await Board.aggregate([
-      {
-        $match:{_id: new mongoose.Types.ObjectId(id)},
-      },
-      {
-        $lookup: {
-          from: "lists",
-          localField: "_id",
-          foreignField: "board_id",
-          as: "lists",
-          pipeline: [
-            {
-              $lookup: {
-                from: "tasks",
-                localField: "_id",
-                foreignField: "list_id",
-                as: "tasks",
-                pipeline: [
-                  {
-                    $lookup: {
-                      from: "comments",
-                      localField: "_id",
-                      foreignField: "task_id",
-                      as: "comments",
-                    },
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      },
-    ]);
-
-    res.status(200).json(boards);
-  }catch(err){
-    res.status(500).json({error: err.message})
+  const { id } = req.params;
+  try {
+    const board = await getBoardWithOrderedLists(id);
+    if (!board) return res.status(404).json({ error: "Board not found" });
+    res.status(200).json([board]); // your existing front-end expects an array; keep same shape
+  } catch (err) {
+    console.error("get_board error:", err);
+    res.status(500).json({ error: err.message });
   }
 };
 
