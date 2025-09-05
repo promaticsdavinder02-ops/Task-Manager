@@ -6,8 +6,7 @@ const pageInfo = document.getElementById("pageInfo");
 
 const API_URL = "http://localhost:3000/api/boards";
 const LIST_API_URL = "http://localhost:3000/api/lists";
-const JWT_TOKEN =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4YjJhMjJjZDFjOTc3N2Y0MTczYWZjYyIsImlhdCI6MTc1NzA0NTU0NSwiZXhwIjoxNzU3NDc3NTQ1fQ.pKE4MvRxre2BOVaomJoeLALj0p9nQZdS3EDa_zp5vMk";
+const JWT_TOKEN = "";
 
 let boardId;
 let lists = [];
